@@ -5,7 +5,7 @@ import torch
 from torch import nn
 import numpy as np
 
-from utils import AverageMeter, plot_features, get_command_line_parser
+from utils import AverageMeter, plot_features, get_command_line_parser, l2_norm
 from prepare_data import get_mnist_data
 from models import ConvNet
 from loss.large_margin_cos_loss import LargeMarginCosLoss
@@ -50,7 +50,8 @@ def train(model,
 
         losses.update(loss.item(), labels.size(0))
 
-        # features = torch.norm(features, p=2, dim=1)
+        if args.plot_normalized:
+            features = l2_norm(features)
 
         if args.plot:
             if use_gpu:
@@ -66,10 +67,12 @@ def train(model,
 
     if args.plot:
         weights = None
-        centers = classifier.weight.data.cpu().numpy()
+        centers = classifier.weight.data
+        if args.plot_normalized:
+            centers = l2_norm(classifier.weight.data)
         all_features = np.concatenate(all_features, 0)
         all_labels = np.concatenate(all_labels, 0)
-        plot_features(all_features, weights, centers, all_labels, num_classes, epoch, prefix='train', args=args)
+        plot_features(all_features, weights, centers.cpu().numpy(), all_labels, num_classes, epoch, prefix='train', args=args)
 
 
 def evaluate(model, classifier, criterion, testloader, use_gpu, num_classes, epoch, args):
@@ -88,7 +91,8 @@ def evaluate(model, classifier, criterion, testloader, use_gpu, num_classes, epo
             total += labels.size(0)
             correct += (predictions == labels.data).sum()
 
-            # features = torch.norm(features, p=2, dim=1)
+            if args.plot_normalized:
+                features = l2_norm(features)
 
             if args.plot:
                 if use_gpu:
@@ -102,8 +106,10 @@ def evaluate(model, classifier, criterion, testloader, use_gpu, num_classes, epo
         all_features = np.concatenate(all_features, 0)
         all_labels = np.concatenate(all_labels, 0)
         weights = None
-        centers = classifier.weight.data.cpu().numpy()
-        plot_features(all_features, weights, centers, all_labels, num_classes, epoch, prefix='test', args=args)
+        centers = classifier.weight.data
+        if args.plot_normalized:
+            centers = l2_norm(classifier.weight.data)
+        plot_features(all_features, weights, centers.cpu().numpy(), all_labels, num_classes, epoch, prefix='test', args=args)
 
     acc = correct * 100. / total
     err = 100. - acc

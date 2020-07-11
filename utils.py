@@ -2,6 +2,7 @@ import argparse
 import matplotlib.pyplot as plt
 import os
 import os.path as osp
+import torch
 
 
 def get_command_line_parser():
@@ -26,6 +27,7 @@ def get_command_line_parser():
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--save-dir', type=str, default='log')
     parser.add_argument('--plot', action='store_true', help="whether to plot features for every epoch")
+    parser.add_argument('--plot-normalized', action='store_true', help="whether to plot normalized feature")
     return parser
 
 
@@ -106,3 +108,9 @@ class AverageMeter:
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+
+def l2_norm(x):
+    x_norm = torch.norm(x, p=2, dim=1).unsqueeze(1).expand_as(x)
+    x_normalized = x.div(x_norm + 0.00001)
+    return x_normalized
