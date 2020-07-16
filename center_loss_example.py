@@ -17,7 +17,7 @@ class BaseLine(nn.Module):
         self.feature_extractor = feature_extractor
         self.embed_size = embed_size
         self.feature_embedding = nn.Linear(feature_extractor.output_dim, self.embed_size)
-        self.classifier = nn.Linear(self.embed_size, num_base_class, bias=True)
+        self.classifier = nn.Linear(self.embed_size, num_base_class, bias=False)
 
     def forward(self, x):
         x = self.feature_embedding(self.feature_extractor(x))
@@ -75,7 +75,8 @@ def train(model, criterion_xent, criterion_cent,
                           cent_losses.val, cent_losses.avg))
 
     if args.plot:
-        weights = model.classifier.weight.data.cpu().numpy()
+        # weights = model.classifier.weight.data.cpu().numpy()
+        weights = None
         centers = criterion_cent.centers.data.cpu().numpy()
         all_features = np.concatenate(all_features, 0)
         all_labels = np.concatenate(all_labels, 0)
@@ -135,7 +136,7 @@ def main():
 
     print("Creating model: {}".format(args.model))
     feature_extractor = ConvNet(depth=4, input_channel=1)
-    model = BaseLine(feature_extractor=feature_extractor, num_base_class=10, embed_size=512)
+    model = BaseLine(feature_extractor=feature_extractor, num_base_class=10, embed_size=2)
 
     if use_gpu:
         model = model.cuda()
