@@ -23,7 +23,7 @@ class CenterLoss(nn.Module):
         else:
             self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim))
 
-    def forward(self, x, labels):
+    def forward_old(self, x, labels):
         """
         Args:
             x: feature matrix with shape (batch_size, feat_dim).
@@ -41,6 +41,19 @@ class CenterLoss(nn.Module):
         mask = labels.eq(classes.expand(batch_size, self.num_classes))
 
         dist = distmat * mask.float()
+        loss = (dist.clamp(min=1e-12, max=1e+12).sum() / batch_size) / self.feat_dim
+
+        return loss
+
+    def forward(self, x, labels):
+        """
+        Args:
+            x: feature matrix with shape (batch_size, feat_dim).
+            labels: ground truth labels with shape (batch_size).
+        """
+        batch_size = x.size(0)
+        batch_centers = self.centers[labels]
+        dist = torch.pow(x - batch_centers, 2)
         loss = (dist.clamp(min=1e-12, max=1e+12).sum() / batch_size) / self.feat_dim
 
         return loss
