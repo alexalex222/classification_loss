@@ -9,7 +9,33 @@ import numpy as np
 from utils import AverageMeter, plot_features, get_command_line_parser
 from prepare_data import get_mnist_data
 from models import ConvNet
-from loss.center_loss import CenterLoss
+
+
+def deep_lvq_loss(dist_mat, y):
+    """
+    Args:
+        dist_mat: distance matrix with shape (batch_size, num_class).
+        y: ground truth labels with shape (batch_size).
+        """
+    # get batch size
+    batch_size = dist_mat.shape[0]
+    batch_index = torch.arange(batch_size).long()
+    # Get the top2 smallest distance
+    values, indexes = torch.topk(-dist_mat, k=2, dim=1)
+    top2 = -values
+    d1 = top2[:, 0]
+    d2 = top2[:, 1]
+        
+    # distance to the reference vector with the correct label
+    d_plus = dist_mat[batch_index, y]
+    # whether the top 1 distance is the distance to the correct reference vector
+    selector = torch.eq(indexes[:, 0], y).float()
+    # if yest, choose d2; if no, choose d1
+    d_minus = selector * d2 + (1 - selector) * d1
+        
+    loss = torch.mean(F.relu((d_plus-d_minus) / (d_plus+d_minus) + 0.5))
+
+    return loss
 
 
 class BaseLine(nn.Module):
@@ -19,11 +45,10 @@ class BaseLine(nn.Module):
         self.embed_size = embed_size
         self.num_base_class = num_base_class
         self.feature_embedding = nn.Linear(feature_extractor.output_dim, self.embed_size)
-        self.scale_factor = nn.Parameter(torch.tensor([1.0], dtype=torch.float32))
-        # self.scale_factor = 1.0
         init_protos = torch.randn(num_base_class, self.embed_size)
+        proto_norm = init_protos.norm(p=2, dim=1, keepdim=True)
+        init_protos = init_protos.div(proto_norm.expand_as(init_protos))
         self.protos = nn.Parameter(init_protos)
-        # nn.init.kaiming_normal_(self.protos)
 
     def forward(self, x):
         h = self.feature_extractor(x)
@@ -46,7 +71,7 @@ class BaseLine(nn.Module):
     def center_loss(self, features, y):
         """
         Args:
-            dist_mat: distance matrix with shape (batch_size, num_class).
+            features: features with shape (batch_size, embed_size).
             y: ground truth labels with shape (batch_size).
         """
         batch_size = features.shape[0]
@@ -57,20 +82,11 @@ class BaseLine(nn.Module):
 
         return loss
 
-    def compute_total_loss(self, x, y, loss_weight=1.0):
-        distmat, features = self.forward(x)
-        loss_reg = self.center_loss(distmat, y)
-        ce_loss = F.cross_entropy(-self.scale_factor * distmat, y)
-        total_loss = ce_loss + loss_weight * loss_reg
-        return total_loss, ce_loss, loss_reg
-
 
 def train(model,
           optimizer_model, 
           trainloader, use_gpu, num_classes, epoch, args):
     model.train()
-    xent_losses = AverageMeter()
-    cent_losses = AverageMeter()
     losses = AverageMeter()
 
     if args.plot:
@@ -80,22 +96,16 @@ def train(model,
         if use_gpu:
             data, labels = data.cuda(), labels.cuda()
 
-        distmat, features = model.forward(data)
-        loss_cent = model.center_loss(features, labels)
-        loss_xent = F.cross_entropy(-model.scale_factor * distmat, labels)
-        if epoch < 10:
-            weight_loss = 0.0
-        else:
-            weight_loss = 0.01
-        weight_loss = 0.1
-        loss = loss_xent + weight_loss * loss_cent
+        distmat, features = model(data)
+        distance_loss = deep_lvq_loss(distmat, labels)
+        intra_class_loss = model.center_loss(features, labels)
+        loss = distance_loss + 0.1 * intra_class_loss
+
         optimizer_model.zero_grad()
         loss.backward()
         optimizer_model.step()
 
         losses.update(loss.item(), labels.size(0))
-        xent_losses.update(loss_xent.item(), labels.size(0))
-        cent_losses.update(loss_cent.item(), labels.size(0))
 
         if args.plot:
             if use_gpu:
@@ -106,9 +116,8 @@ def train(model,
                 all_labels.append(labels.data.numpy())
 
         if (batch_idx + 1) % args.print_freq == 0:
-            print("Batch {}/{}\t Loss {:.6f} ({:.6f}) XentLoss {:.6f} ({:.6f}) CenterLoss {:.6f} ({:.6f})" \
-                  .format(batch_idx + 1, len(trainloader), losses.val, losses.avg, xent_losses.val, xent_losses.avg,
-                          cent_losses.val, cent_losses.avg))
+            print("Batch {}/{}\t Loss {:.6f} ({:.6f})"
+                  .format(batch_idx + 1, len(trainloader), losses.val, losses.avg))
 
     if args.plot:
         # weights = model.classifier.weight.data.cpu().numpy()
@@ -129,7 +138,7 @@ def evaluate(model, testloader, use_gpu, num_classes, epoch, args):
         for data, labels in testloader:
             if use_gpu:
                 data, labels = data.cuda(), labels.cuda()
-            dist_mat, features = model.forward(data)
+            dist_mat, features = model(data)
             outputs = -dist_mat
             predictions = outputs.data.max(1)[1]
             total += labels.size(0)
@@ -153,6 +162,7 @@ def evaluate(model, testloader, use_gpu, num_classes, epoch, args):
     acc = correct * 100. / total
     err = 100. - acc
     return acc, err
+
 
 def main():
     parser = get_command_line_parser()
