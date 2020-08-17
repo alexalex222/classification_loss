@@ -19,8 +19,8 @@ class BaseLine(nn.Module):
         self.embed_size = embed_size
         self.num_base_class = num_base_class
         self.feature_embedding = nn.Linear(feature_extractor.output_dim, self.embed_size)
-        # self.scale_factor = nn.Parameter(torch.tensor([10], dtype=torch.float32))
-        self.scale_factor = 1.0
+        self.scale_factor = nn.Parameter(torch.tensor([1.0], dtype=torch.float32))
+        # self.scale_factor = 1.0
         init_protos = torch.randn(num_base_class, self.embed_size)
         proto_norm = init_protos.norm(p=2, dim=1, keepdim=True)
         init_protos =  init_protos.div(proto_norm.expand_as(init_protos))
@@ -29,7 +29,7 @@ class BaseLine(nn.Module):
 
     def forward(self, x):
         h = self.feature_extractor(x)
-        h = F.relu(h)
+        # h = F.relu(h)
         features = self.feature_embedding(h)
         dist_mat = self.distance(features)
         return dist_mat, features
@@ -89,9 +89,8 @@ def train(model,
             weight_loss = 0.0
         else:
             weight_loss = 0.01
-        weight_loss = 0.001
+        weight_loss = 0.1
         loss = loss_xent + weight_loss * loss_cent
-
         optimizer_model.zero_grad()
         loss.backward()
         optimizer_model.step()
