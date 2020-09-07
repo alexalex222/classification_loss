@@ -8,7 +8,7 @@ import numpy as np
 
 from utils import AverageMeter, plot_features, get_command_line_parser
 from prepare_data import get_mnist_data
-from models import ConvNet
+from models import ConvNet, ResNet18
 from loss.center_loss import CenterLoss
 
 

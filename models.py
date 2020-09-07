@@ -1,5 +1,6 @@
 import math
 from torch import nn
+import torchvision
 
 
 def init_layer(layer):
@@ -67,3 +68,14 @@ class ConvNet(nn.Module):
         out = self.trunk(x)
         return out
 
+class ResNet18(nn.Module):
+    def __init__(self, pretrained=True):
+        super(ResNet18, self).__init__()
+        basenet = torchvision.models.resnet18(pretrained=pretrained)
+        self.extractor = nn.Sequential(*list(basenet.children())[:-1])
+        self.output_dim = 512
+
+    def forward(self, x):
+        x = self.extractor(x)
+        x = x.view(x.size(0), -1)
+        return x
