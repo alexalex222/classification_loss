@@ -2,7 +2,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms, datasets
 
 
-def get_mnist_data(data_dir='C:\\Temp\\torch_dataset', train_batch_size=64, test_batch_size=1000, workers=4):
+def get_mnist_data(data_dir='D:\\Temp\\torch_dataset', train_batch_size=64, test_batch_size=1000, workers=4):
     train_loader = DataLoader(
         datasets.MNIST(data_dir, train=True, download=False,
                        transform=transforms.Compose([

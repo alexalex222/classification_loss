@@ -7,7 +7,7 @@ import torch
 
 def get_command_line_parser():
     parser = argparse.ArgumentParser("Loss Example")
-    parser.add_argument('--data-dir', type=str, default='C:\\Temp\\torch_dataset', help='Path to data set')
+    parser.add_argument('--data-dir', type=str, default='D:\\Temp\\torch_dataset', help='Path to data set')
     parser.add_argument('--workers', default=4, type=int,
                         help="number of data loading workers (default: 4)")
     # optimization
